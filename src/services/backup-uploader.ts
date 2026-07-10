@@ -237,6 +237,14 @@ function buildWebDavUrl(baseUrl: string, relativePath: string): string {
   return normalized ? `${trimmedBase}/${encodePathSegments(normalized)}` : trimmedBase;
 }
 
+// WebDAV collections are conventionally addressed with a trailing slash. Some
+// servers accept either spelling, while others redirect or reject the bare form
+// for collection methods such as MKCOL and PROPFIND. Keep file URLs unchanged:
+// a trailing slash on a file URL can change its meaning or trigger a redirect.
+function buildWebDavCollectionUrl(baseUrl: string, relativePath: string): string {
+  return `${buildWebDavUrl(baseUrl, relativePath)}/`;
+}
+
 function webDavFullPath(config: WebDavBackupDestination, relativePath: string): string {
   return buildJoinedPath(config.remotePath, normalizeRelativePath(relativePath));
 }
@@ -246,7 +254,7 @@ async function ensureWebDavDirectory(baseUrl: string, directoryPath: string, aut
   let current = '';
   for (const segment of segments) {
     current = buildJoinedPath(current, segment);
-    const url = buildWebDavUrl(baseUrl, current);
+    const url = buildWebDavCollectionUrl(baseUrl, current);
     const response = await fetch(url, {
       method: 'MKCOL',
       headers: {
@@ -269,7 +277,7 @@ async function ensureWebDavDirectoryCached(
   for (const segment of segments) {
     current = buildJoinedPath(current, segment);
     if (ensuredDirectories.has(current)) continue;
-    const url = buildWebDavUrl(baseUrl, current);
+    const url = buildWebDavCollectionUrl(baseUrl, current);
     const response = await fetch(url, {
       method: 'MKCOL',
       headers: {
@@ -340,7 +348,7 @@ async function listWebDavEntries(config: WebDavBackupDestination, relativePath: 
   const currentPath = normalizeRelativePath(relativePath);
   const targetFullPath = webDavFullPath(config, currentPath);
   const authHeader = toBasicAuthHeader(config.username, config.password);
-  const response = await fetch(buildWebDavUrl(config.baseUrl, targetFullPath), {
+  const response = await fetch(buildWebDavCollectionUrl(config.baseUrl, targetFullPath), {
     method: 'PROPFIND',
     headers: {
       Authorization: authHeader,
